@@ -1,0 +1,72 @@
+version: '3.5'
+
+services:
+  database:
+    image: interactionlab/mongo:3.4
+    restart: on-failure
+    networks:
+      - neurone-network
+    ports:
+      - ${NEURONE_DB_PORT:-1313}:27017
+    volumes:
+      - ${NEURONE_MONGO_PATH:-~/neuroneDatabase}:/data/db
+    environment:
+      - MONGODB_ADMIN_USER=${NEURONE_ADMIN_DB_USER:-admin}
+      - MONGODB_ADMIN_PASS=${NEURONE_ADMIN_DB_PASS:-neurone2017}
+      - MONGODB_APPLICATION_DATABASE=${NEURONE_DB:-neurone}
+      - MONGODB_APPLICATION_USER=${NEURONE_DB_USER:-neurone}
+      - MONGODB_APPLICATION_PASS=${NEURONE_DB_PASS:-neurone2017}
+  search:
+    image: solr:6
+    restart: on-failure
+    networks:
+      - neurone-network
+    ports:
+      - ${NEURONE_INDEX_PORT:-1314}:8983
+    volumes:
+      - ${NEURONE_INDEX_PATH:-~/neuroneIndex}:/opt/solr/server/solr/mycores
+    entrypoint:
+      - solr-precreate
+      - ${NEURONE_SOLR_CORE:-neurone}
+  app:
+    image: interactionlab/neurone:1.3.3
+    restart: on-failure
+    networks:
+      - neurone-network
+    ports:
+     - ${NEURONE_APP_PORT:-80}:80
+    volumes:
+     - ${NEURONE_ASSET_PATH:-~/neuroneAssets}:/assets
+    links:
+     - database
+     - search
+    environment:
+     - ROOT_URL=http://${NEURONE_HOST:-localhost}
+     - MONGO_URL=mongodb://${NEURONE_DB_USER:-neurone}:${NEURONE_DB_PASS:-neurone2017}@database:27017/${NEURONE_DB:-neurone}
+     - NEURONE_SOLR_HOST=search
+     - NEURONE_SOLR_PORT=8983
+     - NEURONE_SOLR_CORE=${NEURONE_SOLR_CORE:-neurone}
+     - DISABLE_WEBSOCKETS=0
+  fallback-app:
+    image: interactionlab/neurone:1.3.3
+    restart: on-failure
+    networks:
+      - neurone-network
+    ports:
+     - ${NEURONE_FALLBACK_APP_PORT:-81}:80
+    volumes:
+     - ${NEURONE_ASSET_PATH:-~/neuroneAssets}:/assets
+    links:
+     - database
+     - search
+    environment:
+     - ROOT_URL=http://${NEURONE_HOST:-localhost}
+     - MONGO_URL=mongodb://${NEURONE_DB_USER:-neurone}:${NEURONE_DB_PASS:-neurone2017}@database:27017/${NEURONE_DB:-neurone}
+     - NEURONE_SOLR_HOST=search
+     - NEURONE_SOLR_PORT=8983
+     - NEURONE_SOLR_CORE=${NEURONE_SOLR_CORE:-neurone}
+     - DISABLE_WEBSOCKETS=1
+
+networks:
+  neurone-network:
+    name: neurone
